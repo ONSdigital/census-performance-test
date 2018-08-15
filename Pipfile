@@ -1,0 +1,13 @@
+[[source]]
+url = "https://pypi.python.org/simple"
+name = "pypi"
+verify_ssl = true
+
+[packages]
+sdc-cryptography = "==0.2.3"
+requests = "*"
+gevent = "*"
+newrelic = "*"
+
+[requires]
+python_version = "3.4"
