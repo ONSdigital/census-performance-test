@@ -50,5 +50,5 @@ if __name__ == '__main__':
     workers = []
     for i in range(NUM_WORKERS):
         workers.append(gevent.spawn(worker, NUM_REQUESTS_PER_WORKER))
-        time.sleep(1)
+        time.sleep(77 * WAIT_BETWEEN_PAGES_MIN / NUM_WORKERS)
     gevent.joinall(workers)
