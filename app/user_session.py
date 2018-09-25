@@ -27,8 +27,10 @@ class UserSession:
         url = self._host + url if url else self.last_url
 
         _post_data = (post_data.copy() or {}) if post_data else {}
-        if self.last_csrf_token is not None:
-            _post_data.update({'csrf_token': self.last_csrf_token})
+        if self.last_csrf_token is None:
+            raise Exception("Missing CSRF token")
+
+        _post_data.update({'csrf_token': self.last_csrf_token})
 
         if action:
             _post_data.update({'action[{action}]'.format(action=action): action_value})
@@ -47,6 +49,9 @@ class UserSession:
             }
 
             response = self._session.get(response.headers['location'], headers=headers, allow_redirects=False)
+
+        if response.status_code != 200:
+            raise Exception('Got back a non-200: {}', response.status_code)
 
         self._cache_response(response)
 
