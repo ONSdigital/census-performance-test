@@ -75,7 +75,7 @@ class UserSession:
         response = self._session.get(self._host + url, allow_redirects=False)
 
         if response.status_code != 302:
-            raise Exception('Got a non-302 back when authenticating session: {}'.format(self.last_response.status_code))
+            raise Exception('Got a non-302 back when authenticating session: {}'.format(response.status_code))
 
         response = self._session.get(response.headers['location'])
 
