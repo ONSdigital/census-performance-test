@@ -51,7 +51,7 @@ class UserSession:
             response = self._session.get(response.headers['location'], headers=headers, allow_redirects=False)
 
         if response.status_code != 200:
-            raise Exception('Got back a non-200: {}', response.status_code)
+            raise Exception('Got back a non-200: {}'.format(response.status_code))
 
         self._cache_response(response)
 
@@ -86,23 +86,24 @@ class UserSession:
 
         self._cache_response(response)
 
+    @newrelic.agent.background_task()
     def complete_survey(self, eq_id, form_type_id):
         variant_flags = {'sexual_identity': 'false'}
         self.launch_survey(eq_id, form_type_id, region_code='GB-ENG', variant_flags=variant_flags, roles=['dumper'])
 
         self.wait_and_submit_answer(action='start_questionnaire')
 
-        self.complete_who_lives_here_section()
+        self.complete_who_lives_here_section()  # 10 pages
 
-        self.complete_household_and_accommodation_section()
+        self.complete_household_and_accommodation_section()  # 10 pages
 
-        self.complete_individual_section_person_1()
+        self.complete_individual_section_person_1()  # 39 pages
 
-        self.complete_individual_section_person_2()
+        self.complete_individual_section_person_2()  # 7 pages
 
-        self.complete_visitors_section_visitor_1()
+        self.complete_visitors_section_visitor_1()  # 6 pages
 
-        self.complete_visitors_section_visitor_2()
+        self.complete_visitors_section_visitor_2()  # 7 pages
 
         self.assert_in_page('You’re ready to submit your 2017 Census Test')
 
