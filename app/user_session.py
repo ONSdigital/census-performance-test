@@ -86,8 +86,7 @@ class UserSession:
 
         self._cache_response(response)
 
-    @newrelic.agent.background_task()
-    def complete_survey(self, eq_id, form_type_id):
+    def start(self, eq_id, form_type_id):
         variant_flags = {'sexual_identity': 'false'}
         self.launch_survey(eq_id, form_type_id, region_code='GB-ENG', variant_flags=variant_flags, roles=['dumper'])
 
@@ -105,6 +104,10 @@ class UserSession:
 
         self.complete_visitors_section_visitor_2()  # 7 pages
 
+        self.complete_survey()
+
+    @newrelic.agent.background_task()
+    def complete_survey(self):
         self.assert_in_page('You’re ready to submit your 2017 Census Test')
 
     def complete_visitors_section_visitor_1(self):
