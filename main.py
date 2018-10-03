@@ -34,7 +34,7 @@ def worker(num_requests):
             wait_between_pages = random.randrange(WAIT_BETWEEN_PAGES_MIN, WAIT_BETWEEN_PAGES_MAX)
             log.info('New user session, waiting %d seconds between pages', wait_between_pages)
             session = UserSession(SURVEY_RUNNER_URL, wait_between_pages)
-            session.complete_survey('household', 'census')
+            session.start('household', 'census')
             if num_requests is not None:
                 num_requests -= 1
         except Exception:
