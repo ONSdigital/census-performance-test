@@ -110,6 +110,10 @@ class UserSession:
     def complete_survey(self):
         self.assert_in_page('You’re ready to submit your 2017 Census Test')
 
+        self.wait_and_submit_answer()
+
+        self.assert_in_page('Submission successful')
+
     def complete_visitors_section_visitor_1(self):
         post_data = [
             {
