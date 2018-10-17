@@ -1,4 +1,4 @@
-FROM python:3.4
+FROM python:3.7
 
 RUN pip install pipenv==8.2.7
 
