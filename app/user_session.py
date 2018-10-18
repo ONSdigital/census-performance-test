@@ -86,9 +86,9 @@ class UserSession:
 
         self._cache_response(response)
 
-    def start(self, eq_id, form_type_id):
+    def start(self):
         variant_flags = {'sexual_identity': 'false'}
-        self.launch_survey(eq_id, form_type_id, region_code='GB-ENG', variant_flags=variant_flags, roles=['dumper'])
+        self.launch_survey('household', 'census', region_code='GB-ENG', variant_flags=variant_flags, roles=['dumper'])
 
         self.wait_and_submit_answer(action='start_questionnaire')
 
