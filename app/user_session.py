@@ -17,6 +17,7 @@ class UserSession:
         self._host = host
         self._wait_between_pages = wait_between_pages
         self._session = requests.session()
+        self.page_load_times = []
 
     def wait_and_submit_answer(self, post_data=None, url=None, action='save_continue', action_value=''):
         time.sleep(self._wait_between_pages)
@@ -24,6 +25,7 @@ class UserSession:
 
     @newrelic.agent.background_task()
     def submit_answer(self, post_data, url, action, action_value):
+        start_time = time.time()
         url = self._host + url if url else self.last_url
 
         _post_data = (post_data.copy() or {}) if post_data else {}
@@ -54,6 +56,7 @@ class UserSession:
             raise Exception('Got back a non-200: {}'.format(response.status_code))
 
         self._cache_response(response)
+        self.page_load_times.append(time.time() - start_time)
 
     def _cache_response(self, response):
         self.last_csrf_token = self._extract_csrf_token(response.text)

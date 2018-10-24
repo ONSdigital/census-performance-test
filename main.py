@@ -27,13 +27,13 @@ if SUBMISSIONS:
     SUBMISSIONS = int(SUBMISSIONS)
 
 WAIT_BETWEEN_PAGES = int(os.getenv('WAIT_BETWEEN_PAGES', '5'))
-SURVEY_TIME_SUCCESS = int(os.getenv('SURVEY_TIME_SUCCESS', '15'))
+PAGE_LOAD_TIME_SUCCESS = float(os.getenv('SURVEY_TIME_SUCCESS', '1.2'))
 
 log = logging.getLogger(__name__)
 
 
 def worker(worker_id):
-    results = []
+    page_load_times = []
     num_submissions = SUBMISSIONS
     while num_submissions is None or num_submissions > 0:
         try:
@@ -41,16 +41,16 @@ def worker(worker_id):
             log.info('[%d] Starting survey', worker_id)
             session = UserSession(SURVEY_RUNNER_URL, WAIT_BETWEEN_PAGES)
             session.start()
-            survey_time = time.time() - start_time
-            results.append(survey_time)
-            log.info('[%d] Survey completed in %f seconds', worker_id, survey_time)
+            page_load_times += session.page_load_times
+            average_page_load_time = sum(session.page_load_times) / len(session.page_load_times)
+            log.info('[%d] Survey completed in %f seconds, average page load time was %.2f seconds', worker_id, time.time() - start_time, average_page_load_time)
             if num_submissions is not None:
                 num_submissions -= 1
         except Exception:
             log.exception('Error running session, will retry in 30 seconds')
             time.sleep(30)
 
-    return results
+    return page_load_times
 
 
 def announce_results(message, color):
@@ -91,18 +91,18 @@ if __name__ == '__main__':
     for i in range(NUM_WORKERS):
         workers.append(gevent.spawn(worker, i))
         time.sleep(77 * WAIT_BETWEEN_PAGES / NUM_WORKERS)
-    results = [r.value for r in gevent.joinall(workers)]
-    results = [item for sublist in results for item in sublist]
+    page_load_times = [r.value for r in gevent.joinall(workers)]
+    page_load_times = [item for sublist in page_load_times for item in sublist]
 
-    average_survey_time = sum(results)/len(results)
-    log.info('Average survey completion time was %.2f seconds', average_survey_time)
+    average_page_load_time = sum(page_load_times) / len(page_load_times)
+    log.info('Average page load time was %.2f seconds', average_page_load_time)
 
     announce_results(
-        'The average survey completion time was *{:.2f}* seconds\n_{} workers each making {} submissions waiting {} seconds between pages_'.format(
-            average_survey_time,
+        'The average page load time was *{:.2f}* seconds\n_{} workers each making {} submissions waiting {} seconds between pages_'.format(
+            average_page_load_time,
             NUM_WORKERS,
             SUBMISSIONS if SUBMISSIONS else 'unlimited',
             WAIT_BETWEEN_PAGES
         ),
-        "#D00000" if average_survey_time > SURVEY_TIME_SUCCESS else "00D000"
+        "#D00000" if average_page_load_time > PAGE_LOAD_TIME_SUCCESS else "00D000"
     )
