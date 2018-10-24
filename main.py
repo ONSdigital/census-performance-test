@@ -27,7 +27,7 @@ if SUBMISSIONS:
     SUBMISSIONS = int(SUBMISSIONS)
 
 WAIT_BETWEEN_PAGES = int(os.getenv('WAIT_BETWEEN_PAGES', '5'))
-PAGE_LOAD_TIME_SUCCESS = float(os.getenv('SURVEY_TIME_SUCCESS', '1.2'))
+PAGE_LOAD_TIME_SUCCESS = float(os.getenv('PAGE_LOAD_TIME_SUCCESS', '1.2'))
 
 log = logging.getLogger(__name__)
 
