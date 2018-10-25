@@ -121,8 +121,6 @@ def run_workers():
 
 if __name__ == '__main__':
 
-    run_workers()
-
     if MODE == MODE_AFTER_DEPLOY:
         tested_version = current_version = get_version()
 
@@ -137,3 +135,5 @@ if __name__ == '__main__':
             run_workers()
 
             tested_version = current_version
+
+    run_workers()
