@@ -179,7 +179,6 @@ class UserSession:
         self.wait_and_submit_answer(action='save_continue')
 
     def complete_individual_section_person_1(self):
-        self.wait_and_submit_answer(action='save_continue')
         post_data = [
             {
                 'details-correct-answer': ['Yes, this is my full name']
@@ -320,7 +319,6 @@ class UserSession:
         self.wait_and_submit_answer(action='save_continue')
 
     def complete_individual_section_person_2(self):
-        self.wait_and_submit_answer(action='save_continue')
         post_data = [
             {
                 'details-correct-answer': ['Yes, this is my full name']
@@ -389,8 +387,6 @@ class UserSession:
         self.assert_in_page('Who lives here?')
         self.assert_in_page('>Save and continue<')
 
-        self.wait_and_submit_answer(post_data={'permanent-or-family-home-answer': ['Yes']})
-        self.wait_and_submit_answer(action='add_answer')
         post_data = [
             {
                 'address-line-1': '44 hill side',
