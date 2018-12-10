@@ -2,8 +2,6 @@ import logging
 import re
 import time
 
-import newrelic.agent
-
 import requests
 
 from app.token_generator import create_token
@@ -23,7 +21,6 @@ class UserSession:
         time.sleep(self._wait_between_pages)
         self.submit_answer(post_data, url, action, action_value)
 
-    @newrelic.agent.background_task()
     def submit_answer(self, post_data, url, action, action_value):
         start_time = time.time()
         url = self._host + url if url else self.last_url
@@ -76,7 +73,6 @@ class UserSession:
                 self.last_response.status_code
             ))
 
-    @newrelic.agent.background_task()
     def launch_survey(self, form_type_id, eq_id, **payload_kwargs):
         token = create_token(form_type_id=form_type_id, eq_id=eq_id, **payload_kwargs)
         url = '/session?token=' + token
@@ -109,7 +105,6 @@ class UserSession:
 
         self.complete_survey()
 
-    @newrelic.agent.background_task()
     def complete_survey(self):
         self.assert_in_page('You’re ready to submit your 2017 Census Test')
         #
