@@ -7,7 +7,7 @@ verify_ssl = true
 sdc-cryptography = "==0.2.3"
 requests = "*"
 gevent = "*"
-newrelic = "*"
+google-cloud-monitoring = "*"
 
 [requires]
 python_version = "3.7"

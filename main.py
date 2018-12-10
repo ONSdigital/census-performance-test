@@ -6,6 +6,8 @@ import logging;logging.basicConfig(
 
 import time
 
+from google.cloud import monitoring_v3
+
 import gevent
 from gevent import monkey; monkey.patch_all()
 
@@ -19,6 +21,12 @@ from app.user_session import UserSession
 SURVEY_RUNNER_URL = os.getenv('SURVEY_RUNNER_URL', 'http://localhost:5000')
 SLACK_WEBHOOK = os.getenv('SLACK_WEBHOOK')
 SLACK_CHANNEL = os.getenv('SLACK_CHANNEL', '#catd')
+
+STACKDRIVER_ENABLED = os.getenv('STACKDRIVER_ENABLED', 'false').lower() == 'true'
+
+STACKDRIVER_BUCKETS = 40
+STACKDRIVER_SCALE = 1
+STACKDRIVER_GROWTH_FACTOR = 1.4
 
 NUM_WORKERS = int(os.getenv('NUM_WORKERS', '1'))
 
@@ -44,6 +52,7 @@ def worker(worker_id):
             log.info('[%d] Starting survey', worker_id)
             session = UserSession(SURVEY_RUNNER_URL, WAIT_BETWEEN_PAGES)
             session.start()
+            emit_stackdriver(session.page_load_times)
             page_load_times += session.page_load_times
             average_page_load_time = sum(session.page_load_times) / len(session.page_load_times)
             log.info('[%d] Survey completed in %f seconds, average page load time was %.2f seconds', worker_id, time.time() - start_time, average_page_load_time)
@@ -54,6 +63,57 @@ def worker(worker_id):
             time.sleep(30)
 
     return page_load_times
+
+
+def emit_stackdriver(page_load_times):
+    if not STACKDRIVER_ENABLED:
+        return
+
+    instance_id = requests.get("http://metadata.google.internal./computeMetadata/v1/instance/id", headers={'Metadata-Flavor': 'Google'}).text
+    zone = requests.get("http://metadata.google.internal./computeMetadata/v1/instance/zone", headers={'Metadata-Flavor': 'Google'}).text
+
+    client = monitoring_v3.MetricServiceClient()
+    project = os.environ['STACKDRIVER_PROJECT_ID']
+
+    series = monitoring_v3.types.TimeSeries()
+    series.metric.type = 'custom.googleapis.com/eq_perftest/page_load_time'
+    # series.metric.labels
+    series.resource.type = 'gke_container'
+    series.resource.labels['project_id'] = project
+    series.resource.labels['cluster_name'] = os.environ['STACKDRIVER_CLUSTER_NAME']
+    series.resource.labels['container_name'] = os.environ['STACKDRIVER_CONTAINER_NAME']
+    series.resource.labels['instance_id'] = instance_id
+    series.resource.labels['namespace_id'] = os.environ['STACKDRIVER_NAMESPACE_UID']
+    series.resource.labels['pod_id'] = os.environ['STACKDRIVER_POD_UID']
+    series.resource.labels['zone'] = zone
+    point = series.points.add()
+
+    point.value.distribution_value.count = len(page_load_times)
+    mean = sum(page_load_times) / len(page_load_times)
+    point.value.distribution_value.mean = mean
+    point.value.distribution_value.sum_of_squared_deviation = sum([(t - mean) ** 2 for t in page_load_times])
+
+    point.value.distribution_value.bucket_options.exponential_buckets.num_finite_buckets = STACKDRIVER_BUCKETS
+    point.value.distribution_value.bucket_options.exponential_buckets.growth_factor = STACKDRIVER_GROWTH_FACTOR
+    point.value.distribution_value.bucket_options.exponential_buckets.scale = STACKDRIVER_SCALE
+
+    counts = [0] * 10
+    for p in page_load_times:
+        counts[get_stackdriver_bucket(p * 1000)] += 1
+    point.value.distribution_value.bucket_counts.extend(counts)
+
+    now = time.time()
+    point.interval.end_time.seconds = int(now)
+    point.interval.end_time.nanos = int((now - point.interval.end_time.seconds) * 10 ** 9)
+    client.create_time_series(client.project_path(project), [series])
+
+
+def get_stackdriver_bucket(page_load_time):
+    for i in range(STACKDRIVER_BUCKETS - 1):
+        if page_load_time < STACKDRIVER_SCALE * STACKDRIVER_GROWTH_FACTOR ** i:
+            return i
+
+    return STACKDRIVER_BUCKETS - 1
 
 
 def get_version():
