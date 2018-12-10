@@ -6,10 +6,10 @@ import logging;logging.basicConfig(
 
 import time
 
-from google.cloud import monitoring_v3
-
 import gevent
 from gevent import monkey; monkey.patch_all()
+
+from google.cloud import monitoring_v3
 
 import os
 
