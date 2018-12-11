@@ -97,7 +97,7 @@ def emit_stackdriver(page_load_times):
     point.value.distribution_value.bucket_options.exponential_buckets.growth_factor = STACKDRIVER_GROWTH_FACTOR
     point.value.distribution_value.bucket_options.exponential_buckets.scale = STACKDRIVER_SCALE
 
-    counts = [0] * 10
+    counts = [0] * STACKDRIVER_BUCKETS
     for p in page_load_times:
         counts[get_stackdriver_bucket(p * 1000)] += 1
     point.value.distribution_value.bucket_counts.extend(counts)
