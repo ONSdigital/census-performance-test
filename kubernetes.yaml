@@ -1,0 +1,41 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: performance-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: performance-test
+  template:
+    metadata:
+      name: performance-test
+      labels:
+        app: performance-test
+    spec:
+      containers:
+        - name: performance-test
+          image: eu.gcr.io/census-ci/census-performance-test
+          imagePullPolicy: Always
+          resources:
+            requests:
+              cpu: "0.6"
+          env:
+            - name: SURVEY_RUNNER_URL
+              value: https://survey-runner.catd.onsdigital.uk
+            - name: NUM_WORKERS
+              value: "1"
+            - name: STACKDRIVER_ENABLED
+              value: "true"
+            - name: STACKDRIVER_PROJECT_ID
+              value: census-kieren-perftest # Set to the ID of your GCP project
+            - name: STACKDRIVER_CLUSTER_NAME
+              value: perftest # Set to the name of your GKE cluster
+            - name: STACKDRIVER_CONTAINER_NAME
+              value: performance-test
+            - name: STACKDRIVER_NAMESPACE_UID
+              value: "d187b93f-fc7e-11e8-80ae-42010a840fc4" # kubectl get namespace default -o jsonpath='{.metadata.uid}'
+            - name: STACKDRIVER_POD_UID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
