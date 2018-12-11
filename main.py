@@ -43,6 +43,7 @@ WAIT_BETWEEN_PAGES = int(os.getenv('WAIT_BETWEEN_PAGES', '5'))
 PAGE_LOAD_TIME_SUCCESS = float(os.getenv('PAGE_LOAD_TIME_SUCCESS', '1.2'))
 
 log = logging.getLogger(__name__)
+stackdriver_page_load_times = []
 
 
 def worker(worker_id):
@@ -54,8 +55,9 @@ def worker(worker_id):
             log.info('[%d] Starting survey', worker_id)
             session = UserSession(SURVEY_RUNNER_URL, WAIT_BETWEEN_PAGES)
             session.start()
-            emit_stackdriver(session.page_load_times)
             page_load_times += session.page_load_times
+            if STACKDRIVER_ENABLED:
+                stackdriver_page_load_times.extend(session.page_load_times)
             average_page_load_time = sum(session.page_load_times) / len(session.page_load_times)
             log.info('[%d] Survey completed in %f seconds, average page load time was %.2f seconds', worker_id, time.time() - start_time, average_page_load_time)
             if MODE != MODE_CONTINUOUS:
@@ -67,48 +69,57 @@ def worker(worker_id):
     return page_load_times
 
 
-def emit_stackdriver(page_load_times):
-    if not STACKDRIVER_ENABLED:
-        return
-
+def stackdriver_worker():
     instance_id = requests.get("http://metadata.google.internal./computeMetadata/v1/instance/id", headers={'Metadata-Flavor': 'Google'}).text
     zone = requests.get("http://metadata.google.internal./computeMetadata/v1/instance/zone", headers={'Metadata-Flavor': 'Google'}).text
     zone = zone.split('/')[-1]
 
     client = monitoring_v3.MetricServiceClient()
-    project = os.environ['STACKDRIVER_PROJECT_ID']
 
-    series = monitoring_v3.types.TimeSeries()
-    series.metric.type = 'custom.googleapis.com/eq_perftest/page_load_time'
-    # series.metric.labels
-    series.resource.type = 'gke_container'
-    series.resource.labels['project_id'] = project
-    series.resource.labels['cluster_name'] = os.environ['STACKDRIVER_CLUSTER_NAME']
-    series.resource.labels['container_name'] = os.environ['STACKDRIVER_CONTAINER_NAME']
-    series.resource.labels['instance_id'] = instance_id
-    series.resource.labels['namespace_id'] = os.environ['STACKDRIVER_NAMESPACE_UID']
-    series.resource.labels['pod_id'] = os.environ['STACKDRIVER_POD_UID']
-    series.resource.labels['zone'] = zone
-    point = series.points.add()
+    while True:
+        time.sleep(60)
 
-    point.value.distribution_value.count = len(page_load_times)
-    mean = sum(page_load_times) / len(page_load_times)
-    point.value.distribution_value.mean = mean
-    point.value.distribution_value.sum_of_squared_deviation = sum([(t - mean) ** 2 for t in page_load_times])
+        if not stackdriver_page_load_times:
+            continue
 
-    point.value.distribution_value.bucket_options.exponential_buckets.num_finite_buckets = STACKDRIVER_BUCKETS
-    point.value.distribution_value.bucket_options.exponential_buckets.growth_factor = STACKDRIVER_GROWTH_FACTOR
-    point.value.distribution_value.bucket_options.exponential_buckets.scale = STACKDRIVER_SCALE
+        try:
+            series = monitoring_v3.types.TimeSeries()
+            series.metric.type = 'custom.googleapis.com/eq_perftest/page_load_time'
+            # series.metric.labels
+            series.resource.type = 'gke_container'
+            series.resource.labels['project_id'] = os.environ['STACKDRIVER_PROJECT_ID']
+            series.resource.labels['cluster_name'] = os.environ['STACKDRIVER_CLUSTER_NAME']
+            series.resource.labels['container_name'] = os.environ['STACKDRIVER_CONTAINER_NAME']
+            series.resource.labels['instance_id'] = instance_id
+            series.resource.labels['namespace_id'] = os.environ['STACKDRIVER_NAMESPACE_UID']
+            series.resource.labels['pod_id'] = os.environ['STACKDRIVER_POD_UID']
+            series.resource.labels['zone'] = zone
+            point = series.points.add()
 
-    counts = [0] * STACKDRIVER_BUCKETS
-    for p in page_load_times:
-        counts[get_stackdriver_bucket(p * 1000)] += 1
-    point.value.distribution_value.bucket_counts.extend(counts)
+            point.value.distribution_value.count = len(stackdriver_page_load_times)
+            mean = sum(stackdriver_page_load_times) / len(stackdriver_page_load_times)
+            point.value.distribution_value.mean = mean
+            point.value.distribution_value.sum_of_squared_deviation = sum([(t - mean) ** 2 for t in stackdriver_page_load_times])
 
-    now = time.time()
-    point.interval.end_time.seconds = int(now)
-    point.interval.end_time.nanos = int((now - point.interval.end_time.seconds) * 10 ** 9)
-    client.create_time_series(client.project_path(project), [series])
+            point.value.distribution_value.bucket_options.exponential_buckets.num_finite_buckets = STACKDRIVER_BUCKETS
+            point.value.distribution_value.bucket_options.exponential_buckets.growth_factor = STACKDRIVER_GROWTH_FACTOR
+            point.value.distribution_value.bucket_options.exponential_buckets.scale = STACKDRIVER_SCALE
+
+            counts = [0] * STACKDRIVER_BUCKETS
+            for p in stackdriver_page_load_times:
+                counts[get_stackdriver_bucket(p * 1000)] += 1
+            point.value.distribution_value.bucket_counts.extend(counts)
+
+            now = time.time()
+            point.interval.end_time.seconds = int(now)
+            point.interval.end_time.nanos = int((now - point.interval.end_time.seconds) * 10 ** 9)
+
+            stackdriver_page_load_times.clear()
+
+            log.info('Sending metrics to stackdriver')
+            client.create_time_series(client.project_path(os.environ['STACKDRIVER_PROJECT_ID']), [series])
+        except Exception:
+            log.exception('Error sending metrics to stackdriver')
 
 
 def get_stackdriver_bucket(page_load_time):
@@ -161,10 +172,12 @@ def run_workers():
     )
 
     workers = []
+    if STACKDRIVER_ENABLED:
+        workers.append(gevent.spawn(stackdriver_worker))
     for i in range(NUM_WORKERS):
         workers.append(gevent.spawn(worker, i))
         time.sleep(77 * WAIT_BETWEEN_PAGES / NUM_WORKERS)
-    page_load_times = [r.value for r in gevent.joinall(workers)]
+    page_load_times = [r.value for r in gevent.joinall(workers) if r.value]
     page_load_times = [item for sublist in page_load_times for item in sublist]
 
     average_page_load_time = sum(page_load_times) / len(page_load_times)
