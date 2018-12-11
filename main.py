@@ -73,6 +73,7 @@ def emit_stackdriver(page_load_times):
 
     instance_id = requests.get("http://metadata.google.internal./computeMetadata/v1/instance/id", headers={'Metadata-Flavor': 'Google'}).text
     zone = requests.get("http://metadata.google.internal./computeMetadata/v1/instance/zone", headers={'Metadata-Flavor': 'Google'}).text
+    zone = zone.split('/')[-1]
 
     client = monitoring_v3.MetricServiceClient()
     project = os.environ['STACKDRIVER_PROJECT_ID']
